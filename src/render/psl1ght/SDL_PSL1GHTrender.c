@@ -109,6 +109,15 @@ typedef struct
     SDL_Rect   dstRect;
 } PSL1GHT_CopyData;
 
+typedef struct
+{
+    SDL_Rect    srcRect;
+    SDL_Rect    dstRect;
+    double      angle;
+    SDL_FPoint  center;
+    SDL_RendererFlip flip;
+} PSL1GHT_CopyExData;
+
 
 static void waitFlip()
 {
@@ -167,7 +176,7 @@ PSL1GHT_CreateRenderer(SDL_Window * window, Uint32 flags)
     
     pitch = displayMode->w * SDL_BYTESPERPIXEL(displayMode->format);
     
-    n = 2;
+    n = 3;
     deprintf (1, "\tCreate the %d screen(s):\n", n);
     for (i = 0; i < n; ++i) {
         deprintf (1,  "\t\tAllocate RSX memory for pixels\n");
@@ -253,7 +262,13 @@ PSL1GHT_WindowEvent(SDL_Renderer * renderer, const SDL_WindowEvent *event)
 static SDL_bool
 PSL1GHT_SupportsBlendMode(SDL_Renderer * renderer, SDL_BlendMode blendMode)
 {
-    return SDL_FALSE;
+    switch (blendMode) {
+        case SDL_BLENDMODE_NONE:
+        case SDL_BLENDMODE_BLEND:
+            return SDL_TRUE;
+        default:
+            return SDL_FALSE;
+    }
 }
 
 static int
@@ -286,6 +301,85 @@ PSL1GHT_CreateTexture(SDL_Renderer * renderer, SDL_Texture * texture)
     if (!texture->driverdata) {
         return -1;
     }
+    return 0;
+}
+
+static int
+PSL1GHT_RenderCopyEx(SDL_Renderer * renderer, SDL_Texture * texture,
+              const SDL_Rect * srcrect, const SDL_Rect * dstrect,
+              const double angle, const SDL_FPoint *center, const SDL_RendererFlip flip)
+{
+    PSL1GHT_RenderData *data = (PSL1GHT_RenderData *) renderer->driverdata;
+    SDL_Surface *dst = PSL1GHT_ActivateRenderer(renderer);
+    SDL_Surface *src = (SDL_Surface *) texture->driverdata;
+    SDL_Rect final_rect = *dstrect;
+    u32 src_offset, dst_offset;
+
+    if (!dst) {
+        return -1;
+    }
+
+    if (renderer->viewport.x || renderer->viewport.y) {
+        final_rect.x += renderer->viewport.x;
+        final_rect.y += renderer->viewport.y;
+    }
+
+    if (texture->blendMode == SDL_BLENDMODE_BLEND) {
+        rsxSetBlendEnable(data->context, GCM_TRUE);
+        rsxSetBlendFunc(data->context, GCM_SRC_ALPHA, GCM_ONE_MINUS_SRC_ALPHA, GCM_SRC_ALPHA, GCM_ONE_MINUS_SRC_ALPHA);
+        rsxSetBlendEquation(data->context, GCM_FUNC_ADD, GCM_FUNC_ADD);
+    }
+    else {
+        rsxSetBlendEnable(data->context, GCM_FALSE);
+    }
+
+    rsxAddressToOffset(dst->pixels, &dst_offset);
+    rsxAddressToOffset(src->pixels, &src_offset);
+
+    gcmTransferScale scale;
+    scale.conversion = GCM_TRANSFER_CONVERSION_TRUNCATE;
+    scale.format = GCM_TRANSFER_SCALE_FORMAT_A8R8G8B8;
+    scale.operation = GCM_TRANSFER_OPERATION_SRCCOPY;
+    scale.clipX = final_rect.x;
+    scale.clipY = final_rect.y;
+    scale.clipW = final_rect.w;
+    scale.clipH = final_rect.h;
+    scale.outX = final_rect.x;
+    scale.outY = final_rect.y;
+    scale.outW = final_rect.w;
+    scale.outH = final_rect.h;
+    scale.ratioX = (srcrect->w << 20) / final_rect.w;
+    scale.ratioY = (srcrect->h << 20) / final_rect.h;
+    scale.inX = srcrect->x;
+    scale.inY = srcrect->y;
+    scale.inW = srcrect->w;
+    scale.inH = srcrect->h;
+
+    if (flip & SDL_FLIP_HORIZONTAL) {
+        scale.inX += srcrect->w;
+        scale.ratioX = -scale.ratioX;
+    }
+    if (flip & SDL_FLIP_VERTICAL) {
+        scale.inY += srcrect->h;
+        scale.ratioY = -scale.ratioY;
+    }
+
+    scale.offset = src_offset;
+    scale.pitch = src->pitch;
+    scale.origin = GCM_TRANSFER_ORIGIN_CORNER;
+    scale.interp = GCM_TRANSFER_INTERPOLATOR_NEAREST;
+
+    gcmTransferSurface surface;
+    surface.format = GCM_TRANSFER_SURFACE_FORMAT_A8R8G8B8;
+    surface.pitch = dst->pitch;
+    surface.offset = dst_offset;
+
+    // Hardware accelerated blit with scaling
+    rsxSetTransferScaleMode(data->context, GCM_TRANSFER_LOCAL_TO_LOCAL, GCM_TRANSFER_SURFACE);
+    rsxSetTransferScaleSurface(data->context, &scale, &surface);
+
+    // TODO: Blending / clipping
+
     return 0;
 }
 
@@ -385,6 +479,7 @@ PSL1GHT_UpdateViewport(SDL_Renderer * renderer)
     
     SDL_SetClipRect(data->screens[0], &renderer->viewport);
     SDL_SetClipRect(data->screens[1], &renderer->viewport);
+    SDL_SetClipRect(data->screens[2], &renderer->viewport);
     return 0;
 }
 
@@ -625,6 +720,15 @@ PSL1GHT_RenderCopy(SDL_Renderer * renderer, SDL_Texture * texture,
         final_rect.y += renderer->viewport.y;
     }
 
+    if (texture->blendMode == SDL_BLENDMODE_BLEND) {
+        rsxSetBlendEnable(data->context, GCM_TRUE);
+        rsxSetBlendFunc(data->context, GCM_SRC_ALPHA, GCM_ONE_MINUS_SRC_ALPHA, GCM_SRC_ALPHA, GCM_ONE_MINUS_SRC_ALPHA);
+        rsxSetBlendEquation(data->context, GCM_FUNC_ADD, GCM_FUNC_ADD);
+    }
+    else {
+        rsxSetBlendEnable(data->context, GCM_FALSE);
+    }
+
     rsxAddressToOffset(dst->pixels, &dst_offset);
     rsxAddressToOffset(src->pixels, &src_offset);
 
@@ -665,11 +769,30 @@ PSL1GHT_RenderCopy(SDL_Renderer * renderer, SDL_Texture * texture,
     return 0;
 }
 
-static int
+static int 
 PSL1GHT_QueueCopyEx(SDL_Renderer * renderer, SDL_RenderCommand *cmd, SDL_Texture * texture,
-                const SDL_Rect * srcquad, const SDL_FRect * dstrect,
+                const SDL_Rect * srcrect, const SDL_FRect * dstrect,
                 const double angle, const SDL_FPoint *center, const SDL_RendererFlip flip)
 {
+    const size_t outLen = sizeof (PSL1GHT_CopyExData);
+    PSL1GHT_CopyExData *outData = (PSL1GHT_CopyExData *) SDL_AllocateRenderVertices(renderer, outLen, 0, &cmd->data.draw.first);
+    
+    if (!outData) {
+        return -1;
+    }
+    cmd->data.draw.count = 1;
+    
+    SDL_memcpy(&outData->srcRect, srcrect, sizeof(SDL_Rect));
+    
+    outData->dstRect.x = dstrect->x;
+    outData->dstRect.y = dstrect->y;
+    outData->dstRect.w = dstrect->w;
+    outData->dstRect.h = dstrect->h;
+    outData->angle = angle;
+    outData->flip = flip;
+    outData->center.x = center->x;
+    outData->center.y = center->y;
+
     return 0;
 }
 
@@ -730,6 +853,10 @@ PSL1GHT_RunCommandQueue(SDL_Renderer * renderer, SDL_RenderCommand *cmd, void *v
             }
 
             case SDL_RENDERCMD_COPY_EX: {
+                const size_t first = cmd->data.draw.first;
+                const PSL1GHT_CopyExData *copyData = (PSL1GHT_CopyExData *) (((Uint8 *) vertices) + first);
+
+                PSL1GHT_RenderCopyEx(renderer, cmd->data.draw.texture, &copyData->srcRect, &copyData->dstRect, copyData->angle, &copyData->center, copyData->flip);
                 break;
             }
 
@@ -785,22 +912,13 @@ PSL1GHT_RenderPresent(SDL_Renderer * renderer)
 {
     PSL1GHT_RenderData *data = (PSL1GHT_RenderData *) renderer->driverdata;
 
-    if (data->first_fb)
-    {
-        gcmResetFlipStatus();
-    }
+    waitFlip();
 
     gcmSetFlip(data->context, data->current_screen);
     rsxFlushBuffer(data->context);
 
-    gcmSetWaitFlip(data->context);
-
-    waitFlip();
-
-    data->first_fb = false;
-
     // Update the flipping chain, if any
-    data->current_screen = (data->current_screen + 1) % 2;
+    data->current_screen = (data->current_screen + 1) % 3;
 }
 
 static void

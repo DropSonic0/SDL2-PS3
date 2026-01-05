@@ -32,7 +32,7 @@
 
 #include <io/pad.h>
 
-#define PSL1GHT_MAX_CONTROLLERS 4
+#define PSL1GHT_MAX_CONTROLLERS 7
 
 // #define pdprintf(x) printf(x)
 
