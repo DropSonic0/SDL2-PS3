@@ -29,6 +29,11 @@
 #include <rsx/rsx.h>
 #include <sysutil/video.h>
 
+#if SDL_VIDEO_OPENGL_EGL
+#include <EGL/egl.h>
+#include <GLES2/gl2.h>
+#endif
+
 /* Debugging
  * 0: No debug messages
  * 1: Video debug messages
@@ -62,6 +67,12 @@ typedef struct SDL_DeviceData
 
     bool _mouseConnected;
     Uint8 _mouseButtons;
+
+#if SDL_VIDEO_OPENGL_EGL
+    EGLDisplay egl_display;
+    EGLConfig egl_config;
+    int egl_swap_interval;
+#endif
 } SDL_DeviceData;
 
 typedef struct SDL_DisplayModeData
@@ -71,7 +82,9 @@ typedef struct SDL_DisplayModeData
 
 typedef struct SDL_WindowData
 {
-
+#if SDL_VIDEO_OPENGL_EGL
+    EGLSurface egl_surface;
+#endif
 } SDL_WindowData;
 
 #endif /* _SDL_PSL1GHTvideo_h */
