@@ -38,6 +38,9 @@
 #include "SDL_PSL1GHTevents_c.h"
 #include "SDL_PSL1GHTmodes_c.h"
 
+#if SDL_VIDEO_OPENGL_EGL
+#include "SDL_opengl.h"
+#endif
 
 #include <malloc.h>
 #include <assert.h>
@@ -49,6 +52,18 @@
 /* Initialization/Query functions */
 static int PSL1GHT_VideoInit(_THIS);
 static void PSL1GHT_VideoQuit(_THIS);
+
+#if SDL_VIDEO_OPENGL_EGL
+static int PSL1GHT_GL_LoadLibrary(_THIS, const char *path);
+static void *PSL1GHT_GL_GetProcAddress(_THIS, const char *proc);
+static void PSL1GHT_GL_UnloadLibrary(_THIS);
+static SDL_GLContext PSL1GHT_GL_CreateContext(_THIS, SDL_Window * window);
+static int PSL1GHT_GL_MakeCurrent(_THIS, SDL_Window * window, SDL_GLContext context);
+static int PSL1GHT_GL_SetSwapInterval(_THIS, int interval);
+static int PSL1GHT_GL_GetSwapInterval(_THIS);
+static void PSL1GHT_GL_SwapWindow(_THIS, SDL_Window * window);
+static void PSL1GHT_GL_DeleteContext(_THIS, SDL_GLContext context);
+#endif
 
 /* PS3GUI init functions : */
 static void initializeGPU(SDL_DeviceData * devdata);
@@ -96,6 +111,9 @@ PSL1GHT_VideoInit(_THIS)
 void
 PSL1GHT_VideoQuit(_THIS)
 {
+#if SDL_VIDEO_OPENGL_EGL
+    PSL1GHT_GL_UnloadLibrary(_this);
+#endif
     deprintf (1, "PSL1GHT_VideoQuit()\n");
     PSL1GHT_QuitModes(_this);
     PSL1GHT_QuitSysEvent(_this);
@@ -119,6 +137,7 @@ int
 PSL1GHT_CreateWindow(_THIS, SDL_Window * window)
 {
     SDL_WindowData *wdata;
+    SDL_DeviceData *devdata = _this->driverdata;
 
     /* Allocate window internal data */
     wdata = (SDL_WindowData *) SDL_calloc(1, sizeof(SDL_WindowData));
@@ -128,6 +147,17 @@ PSL1GHT_CreateWindow(_THIS, SDL_Window * window)
 
     /* Setup driver data for this window */
     window->driverdata = wdata;
+
+#if SDL_VIDEO_OPENGL_EGL
+    if (window->flags & SDL_WINDOW_OPENGL) {
+        wdata->egl_surface = eglCreateWindowSurface(devdata->egl_display, devdata->egl_config, (EGLNativeWindowType) NULL, NULL);
+        if (wdata->egl_surface == EGL_NO_SURFACE) {
+            SDL_free(wdata);
+            window->driverdata = NULL;
+            return SDL_SetError("Could not create EGL window surface");
+        }
+    }
+#endif
 
     SDL_SetKeyboardFocus(window);
 
@@ -189,6 +219,18 @@ PSL1GHT_SetWindowGrab(_THIS, SDL_Window * window, SDL_bool grabbed)
 void
 PSL1GHT_DestroyWindow(_THIS, SDL_Window * window)
 {
+    if (window->driverdata) {
+#if SDL_VIDEO_OPENGL_EGL
+        SDL_DeviceData *devdata = _this->driverdata;
+        SDL_WindowData *wdata = window->driverdata;
+
+        if (devdata->egl_display != EGL_NO_DISPLAY && wdata->egl_surface != EGL_NO_SURFACE) {
+            eglDestroySurface(devdata->egl_display, wdata->egl_surface);
+        }
+#endif
+        SDL_free(window->driverdata);
+        window->driverdata = NULL;
+    }
 }
 
 SDL_bool PSL1GHT_HasScreenKeyboardSupport(_THIS)
@@ -250,6 +292,18 @@ PSL1GHT_CreateDevice(int devindex)
 
     device->PumpEvents = PSL1GHT_PumpEvents;
 
+#if SDL_VIDEO_OPENGL_EGL
+    device->GL_LoadLibrary = PSL1GHT_GL_LoadLibrary;
+    device->GL_GetProcAddress = PSL1GHT_GL_GetProcAddress;
+    device->GL_UnloadLibrary = PSL1GHT_GL_UnloadLibrary;
+    device->GL_CreateContext = PSL1GHT_GL_CreateContext;
+    device->GL_MakeCurrent = PSL1GHT_GL_MakeCurrent;
+    device->GL_SetSwapInterval = PSL1GHT_GL_SetSwapInterval;
+    device->GL_GetSwapInterval = PSL1GHT_GL_GetSwapInterval;
+    device->GL_SwapWindow = PSL1GHT_GL_SwapWindow;
+    device->GL_DeleteContext = PSL1GHT_GL_DeleteContext;
+#endif
+
     device->free = PSL1GHT_DeleteDevice;
 
     return device;
@@ -259,5 +313,141 @@ VideoBootStrap PSL1GHT_bootstrap = {
     PSL1GHTVID_DRIVER_NAME, "SDL psl1ght video driver",
     PSL1GHT_Available, PSL1GHT_CreateDevice
 };
+
+#if SDL_VIDEO_OPENGL_EGL
+
+static int
+PSL1GHT_GL_LoadLibrary(_THIS, const char *path) {
+    SDL_DeviceData *devdata = _this->driverdata;
+
+    devdata->egl_display = eglGetDisplay(EGL_DEFAULT_DISPLAY);
+    if (devdata->egl_display == EGL_NO_DISPLAY) {
+        return SDL_SetError("Could not get EGL display");
+    }
+
+    if (eglInitialize(devdata->egl_display, NULL, NULL) != EGL_TRUE) {
+        return SDL_SetError("Could not initialize EGL");
+    }
+
+    const EGLint attribs[] = {
+        EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
+        EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
+        EGL_RED_SIZE, 8,
+        EGL_GREEN_SIZE, 8,
+        EGL_BLUE_SIZE, 8,
+        EGL_ALPHA_SIZE, 8,
+        EGL_DEPTH_SIZE, 24,
+        EGL_STENCIL_SIZE, 8,
+        EGL_NONE
+    };
+
+    EGLint num_configs;
+    if (eglChooseConfig(devdata->egl_display, attribs, &devdata->egl_config, 1, &num_configs) != EGL_TRUE) {
+        return SDL_SetError("Could not choose EGL config");
+    }
+
+    if (num_configs == 0) {
+        return SDL_SetError("No EGL configs found");
+    }
+
+    return 0;
+}
+
+static void
+PSL1GHT_GL_UnloadLibrary(_THIS) {
+    SDL_DeviceData *devdata = _this->driverdata;
+
+    if (devdata->egl_display != EGL_NO_DISPLAY) {
+        eglTerminate(devdata->egl_display);
+        devdata->egl_display = EGL_NO_DISPLAY;
+    }
+}
+
+static void *
+PSL1GHT_GL_GetProcAddress(_THIS, const char *proc)
+{
+    return eglGetProcAddress(proc);
+}
+
+static SDL_GLContext
+PSL1GHT_GL_CreateContext(_THIS, SDL_Window * window)
+{
+    SDL_DeviceData *devdata = _this->driverdata;
+
+    EGLint attribs[] = {
+        EGL_CONTEXT_CLIENT_VERSION, 2,
+        EGL_NONE
+    };
+
+    EGLContext context = eglCreateContext(devdata->egl_display, devdata->egl_config, EGL_NO_CONTEXT, attribs);
+    if (context == EGL_NO_CONTEXT) {
+        SDL_SetError("Could not create EGL context");
+        return NULL;
+    }
+
+    return context;
+}
+
+static int
+PSL1GHT_GL_MakeCurrent(_THIS, SDL_Window * window, SDL_GLContext context)
+{
+    SDL_DeviceData *devdata = _this->driverdata;
+    EGLSurface surface;
+
+    if (context) {
+        SDL_WindowData *wdata = (SDL_WindowData *) window->driverdata;
+        surface = wdata->egl_surface;
+    } else {
+        surface = EGL_NO_SURFACE;
+    }
+
+    if (eglMakeCurrent(devdata->egl_display, surface, surface, context) != EGL_TRUE) {
+        return SDL_SetError("Could not make EGL context current");
+    }
+
+    return 0;
+}
+
+static int
+PSL1GHT_GL_SetSwapInterval(_THIS, int interval)
+{
+    SDL_DeviceData *devdata = _this->driverdata;
+
+    if (eglSwapInterval(devdata->egl_display, interval) != EGL_TRUE) {
+        return SDL_SetError("Could not set EGL swap interval");
+    }
+
+    devdata->egl_swap_interval = interval;
+    return 0;
+}
+
+static int
+PSL1GHT_GL_GetSwapInterval(_THIS)
+{
+    SDL_DeviceData *devdata = _this->driverdata;
+
+    return devdata->egl_swap_interval;
+}
+
+static void
+PSL1GHT_GL_SwapWindow(_THIS, SDL_Window * window)
+{
+    SDL_DeviceData *devdata = _this->driverdata;
+    SDL_WindowData *wdata = window->driverdata;
+
+    eglSwapBuffers(devdata->egl_display, wdata->egl_surface);
+}
+
+static void
+PSL1GHT_GL_DeleteContext(_THIS, SDL_GLContext context)
+{
+    SDL_DeviceData *devdata = _this->driverdata;
+
+    if (devdata->egl_display != EGL_NO_DISPLAY) {
+        eglDestroyContext(devdata->egl_display, context);
+    }
+}
+
+#endif
 
 /* vi: set ts=4 sw=4 expandtab: */
