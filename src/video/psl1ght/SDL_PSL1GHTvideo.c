@@ -37,7 +37,7 @@
 #include "SDL_PSL1GHTvideo.h"
 #include "SDL_PSL1GHTevents_c.h"
 #include "SDL_PSL1GHTmodes_c.h"
-
+#include "SDL_psl1ghtopengl.h"
 
 #include <malloc.h>
 #include <assert.h>
@@ -249,6 +249,16 @@ PSL1GHT_CreateDevice(int devindex)
     device->IsScreenKeyboardShown = PSL1GHT_IsScreenKeyboardShown;
 
     device->PumpEvents = PSL1GHT_PumpEvents;
+
+    device->GL_LoadLibrary = PSL1GHT_GL_LoadLibrary;
+    device->GL_GetProcAddress = PSL1GHT_GL_GetProcAddress;
+    device->GL_UnloadLibrary = PSL1GHT_GL_UnloadLibrary;
+    device->GL_CreateContext = PSL1GHT_GL_CreateContext;
+    device->GL_MakeCurrent = PSL1GHT_GL_MakeCurrent;
+    device->GL_SetSwapInterval = PSL1GHT_GL_SetSwapInterval;
+    device->GL_GetSwapInterval = PSL1GHT_GL_GetSwapInterval;
+    device->GL_SwapWindow = PSL1GHT_GL_SwapWindow;
+    device->GL_DeleteContext = PSL1GHT_GL_DeleteContext;
 
     device->free = PSL1GHT_DeleteDevice;
 

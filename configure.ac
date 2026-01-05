@@ -2310,6 +2310,9 @@ AC_HELP_STRING([--enable-video-psl1ght], [use PSL1GHT video driver [[default=yes
         AC_DEFINE(SDL_VIDEO_DRIVER_PSL1GHT, 1, [ ])
         AC_DEFINE(SDL_VIDEO_RENDER_PSL1GHT, 1, [ ])
         SOURCES="$SOURCES $srcdir/src/video/psl1ght/*.c $srcdir/src/render/psl1ght/*.c"
+        if test x$enable_video_opengl = xyes; then
+            SOURCES="$SOURCES $srcdir/src/video/psl1ght/*opengl.c"
+        fi
         have_video=yes
     fi
 }
@@ -2504,7 +2507,7 @@ CheckPSL1GHTGL()
     if test x$enable_video = xyes -a x$enable_video_opengl = xyes; then
         AC_DEFINE(SDL_VIDEO_OPENGL, 1, [ ])
         AC_DEFINE(SDL_VIDEO_RENDER_OGL, 1, [ ])
-        EXTRA_LDFLAGS="$EXTRA_LDFLAGS -lEGL -lGL -lstdc++ -lm"
+        EXTRA_LDFLAGS="$EXTRA_LDFLAGS -lEGL -lGL -lstdc++ -lm -lRSXGL"
     fi
 }
 
@@ -4081,8 +4084,8 @@ AS_HELP_STRING([--enable-render-d3d], [enable the Direct3D render driver [[defau
         EXTRA_CFLAGS="$EXTRA_CFLAGS -I\"$PSL1GHT/ppu/include\" -mcpu=cell "
         EXTRA_LDFLAGS="$EXTRA_LDFLAGS -lgcm_sys -lrsx -lsysutil -lio -laudio -lrt -llv2"
         CheckPSL1GHTVideo
-        #CheckDummyAudio
-        #CheckPSL1GHTGL
+        CheckDummyAudio
+        CheckPSL1GHTGL
 
         # Set up files for the thread library
         if test x$enable_threads = xyes; then
