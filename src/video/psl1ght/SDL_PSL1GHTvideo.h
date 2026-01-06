@@ -69,9 +69,15 @@ typedef struct SDL_DisplayModeData
     videoConfiguration vconfig;
 } PSL1GHT_DisplayModeData;
 
+#if SDL_VIDEO_OPENGL_EGL
+#include "SDL_psl1ghtopengles.h"
+#endif
+
 typedef struct SDL_WindowData
 {
-
+#if SDL_VIDEO_OPENGL_EGL
+    EGLSurface egl_surface;
+#endif
 } SDL_WindowData;
 
 #endif /* _SDL_PSL1GHTvideo_h */
