@@ -132,6 +132,13 @@ PSL1GHT_CreateWindow(_THIS, SDL_Window * window)
     SDL_SetKeyboardFocus(window);
 
     /* Window has been successfully created */
+#if SDL_VIDEO_OPENGL_EGL
+    wdata->egl_surface = SDL_EGL_CreateSurface(_this, (NativeWindowType) window);
+
+    if (wdata->egl_surface == EGL_NO_SURFACE) {
+        return SDL_SetError("Could not create GLES window surface");
+    }
+#endif
     return 0;
 }
 
@@ -189,6 +196,17 @@ PSL1GHT_SetWindowGrab(_THIS, SDL_Window * window, SDL_bool grabbed)
 void
 PSL1GHT_DestroyWindow(_THIS, SDL_Window * window)
 {
+#if SDL_VIDEO_OPENGL_EGL
+    SDL_WindowData *wdata = (SDL_WindowData *) window->driverdata;
+    if (wdata) {
+        if (wdata->egl_surface != EGL_NO_SURFACE) {
+            SDL_EGL_DestroySurface(_this, wdata->egl_surface);
+            wdata->egl_surface = EGL_NO_SURFACE;
+        }
+    }
+#endif
+    SDL_free(window->driverdata);
+    window->driverdata = NULL;
 }
 
 SDL_bool PSL1GHT_HasScreenKeyboardSupport(_THIS)
@@ -225,6 +243,17 @@ PSL1GHT_CreateDevice(int devindex)
     }
 
     /* Set the function pointers */
+#if SDL_VIDEO_OPENGL_EGL
+    device->GL_LoadLibrary = PSL1GHT_GLES_LoadLibrary;
+    device->GL_GetProcAddress = PSL1GHT_GLES_GetProcAddress;
+    device->GL_UnloadLibrary = PSL1GHT_GLES_UnloadLibrary;
+    device->GL_CreateContext = PSL1GHT_GLES_CreateContext;
+    device->GL_MakeCurrent = PSL1GHT_GLES_MakeCurrent;
+    device->GL_SetSwapInterval = PSL1GHT_GLES_SetSwapInterval;
+    device->GL_GetSwapInterval = PSL1GHT_GLES_GetSwapInterval;
+    device->GL_SwapWindow = PSL1GHT_GLES_SwapWindow;
+    device->GL_DeleteContext = PSL1GHT_GLES_DeleteContext;
+#endif
     device->VideoInit = PSL1GHT_VideoInit;
     device->VideoQuit = PSL1GHT_VideoQuit;
     device->GetDisplayModes = PSL1GHT_GetDisplayModes;
