@@ -65,6 +65,11 @@
  */
 
 
+#if defined(__PS3__) || defined(__PSL1GHT__)
+#include <GLES/gl.h>
+#include <GLES/glext.h>
+#endif
+
 #ifndef __gl_h_
 #define __gl_h_
 

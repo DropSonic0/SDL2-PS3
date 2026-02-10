@@ -30,6 +30,7 @@
 
 #include "SDL_video.h"
 #include "SDL_mouse.h"
+#include "SDL_hints.h"
 #include "../SDL_sysvideo.h"
 #include "../SDL_pixels_c.h"
 #include "../../events/SDL_events_c.h"
@@ -85,24 +86,19 @@ PSL1GHT_VideoInit(_THIS)
 
     PSL1GHT_InitSysEvent(_this);
 
-#if SDL_VIDEO_OPENGL_PSGL
-    // If PSGL is used, we might want to initialize it early or let GL_LoadLibrary handle it.
-    // For now, let's keep initializeGPU and see if we can coexist or if we need to skip it.
-    // If the user wants PSGL, they probably expect PSGL to own the RSX.
     if (SDL_GetHintBoolean(SDL_HINT_VIDEO_OPENGL_PSGL, SDL_FALSE)) {
+#if SDL_VIDEO_OPENGL_PSGL
         PSL1GHT_GL_LoadLibrary(_this, NULL);
+#else
+        initializeGPU(devdata);
+        gcmSetFlipMode(GCM_FLIP_VSYNC);
+#endif
     } else {
         initializeGPU(devdata);
+        gcmSetFlipMode(GCM_FLIP_VSYNC);
     }
-#else
-    initializeGPU(devdata);
-#endif
 
     PSL1GHT_InitModes(_this);
-
-#if !SDL_VIDEO_OPENGL_PSGL
-    gcmSetFlipMode(GCM_FLIP_VSYNC); // Wait for VSYNC to flip
-#endif
 
     /* We're done! */
     return 0;
