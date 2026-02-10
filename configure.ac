@@ -2513,6 +2513,7 @@ CheckPSL1GHTGL()
         if test x$enable_video_psgl = xyes; then
             AC_DEFINE(SDL_VIDEO_OPENGL_PSGL, 1, [ ])
             AC_DEFINE(SDL_VIDEO_OPENGL_ES, 1, [ ])
+            AC_DEFINE(SDL_VIDEO_RENDER_OGL_ES, 1, [ ])
             EXTRA_LDFLAGS="$EXTRA_LDFLAGS -lpsgl -lpsglu -lpsgl_effects -lcg -lcgGL -lstdc++ -lm"
         else
             EXTRA_LDFLAGS="$EXTRA_LDFLAGS -lEGL -lGL -lstdc++ -lm"

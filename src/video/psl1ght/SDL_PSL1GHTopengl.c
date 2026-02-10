@@ -33,15 +33,12 @@
 #include <PSGL/psgl.h>
 #include <PSGL/psglu.h>
 
-// Some common PSGL constants if not defined in headers
-#ifndef GL_ARGB8_SCE
-#define GL_ARGB8_SCE 0x8C12
+// Sony PSGL specific constants from headers
+#ifndef GL_ARGB_SCE
+#define GL_ARGB_SCE 0x6007
 #endif
-#ifndef PSGL_MULTISAMPLING_4X
-#define PSGL_MULTISAMPLING_4X 0x00000001
-#endif
-#ifndef PSGL_MULTISAMPLING_NONE
-#define PSGL_MULTISAMPLING_NONE 0x00000000
+#ifndef GL_MULTISAMPLING_NONE_SCE
+#define GL_MULTISAMPLING_NONE_SCE 0x6030
 #endif
 
 #endif
@@ -98,7 +95,7 @@ PSL1GHT_GL_CreateContext(_THIS, SDL_Window * window)
 #if SDL_VIDEO_OPENGL_PSGL
     SDL_DeviceData *devdata = (SDL_DeviceData *) _this->driverdata;
     if (!devdata->psgl_device) {
-        devdata->psgl_device = psglCreateDeviceAuto(GL_ARGB8_SCE, GL_DEPTH_COMPONENT24, PSGL_MULTISAMPLING_NONE);
+        devdata->psgl_device = psglCreateDeviceAuto(GL_ARGB_SCE, GL_DEPTH_COMPONENT24, GL_MULTISAMPLING_NONE_SCE);
         if (!devdata->psgl_device) {
             SDL_SetError("psglCreateDeviceAuto failed");
             return NULL;
