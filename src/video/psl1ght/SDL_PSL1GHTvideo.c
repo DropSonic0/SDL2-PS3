@@ -85,10 +85,24 @@ PSL1GHT_VideoInit(_THIS)
 
     PSL1GHT_InitSysEvent(_this);
 
+#if SDL_VIDEO_OPENGL_PSGL
+    // If PSGL is used, we might want to initialize it early or let GL_LoadLibrary handle it.
+    // For now, let's keep initializeGPU and see if we can coexist or if we need to skip it.
+    // If the user wants PSGL, they probably expect PSGL to own the RSX.
+    if (SDL_GetHintBoolean(SDL_HINT_VIDEO_OPENGL_PSGL, SDL_FALSE)) {
+        PSL1GHT_GL_LoadLibrary(_this, NULL);
+    } else {
+        initializeGPU(devdata);
+    }
+#else
     initializeGPU(devdata);
+#endif
+
     PSL1GHT_InitModes(_this);
 
+#if !SDL_VIDEO_OPENGL_PSGL
     gcmSetFlipMode(GCM_FLIP_VSYNC); // Wait for VSYNC to flip
+#endif
 
     /* We're done! */
     return 0;
@@ -104,7 +118,7 @@ PSL1GHT_VideoQuit(_THIS)
 #if SDL_VIDEO_OPENGL_PSGL
     SDL_DeviceData *devdata = (SDL_DeviceData *) _this->driverdata;
     if (devdata && devdata->psgl_device) {
-        // psglDestroyDevice(devdata->psgl_device); // Might not be needed if psglExit is called
+        psglDestroyDevice(devdata->psgl_device);
         devdata->psgl_device = NULL;
     }
 #endif

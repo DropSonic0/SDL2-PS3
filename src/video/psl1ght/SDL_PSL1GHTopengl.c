@@ -29,16 +29,38 @@
 #include "SDL_egl_c.h"
 #endif
 
+#if SDL_VIDEO_OPENGL_PSGL
+#include <PSGL/psgl.h>
+#include <PSGL/psglu.h>
+
+// Some common PSGL constants if not defined in headers
+#ifndef GL_ARGB8_SCE
+#define GL_ARGB8_SCE 0x8C12
+#endif
+#ifndef PSGL_MULTISAMPLING_4X
+#define PSGL_MULTISAMPLING_4X 0x00000001
+#endif
+#ifndef PSGL_MULTISAMPLING_NONE
+#define PSGL_MULTISAMPLING_NONE 0x00000000
+#endif
+
+#endif
+
 int
 PSL1GHT_GL_LoadLibrary(_THIS, const char *path)
 {
 #if SDL_VIDEO_OPENGL_PSGL
+    static int psgl_initialized = 0;
+    if (psgl_initialized) return 0;
+
     PSGLinitOptions options;
-    options.enable = PSGL_INIT_MAX_SPES | PSGL_INIT_HOST_MEMORY_SIZE;
-    options.max_spes = 0;
-    options.host_memory_size = 128 * 1024 * 1024; // 128MB
+    SDL_memset(&options, 0, sizeof(options));
+    options.enable = PSGL_INIT_MAX_SPUS | PSGL_INIT_HOST_MEMORY_SIZE;
+    options.maxSPUs = 1;
+    options.hostMemorySize = 128 * 1024 * 1024; // 128MB
 
     psglInit(&options);
+    psgl_initialized = 1;
     return 0;
 #elif SDL_VIDEO_OPENGL_EGL
     return SDL_EGL_LoadLibrary(_this, path, EGL_DEFAULT_DISPLAY, 0);
@@ -51,7 +73,8 @@ void *
 PSL1GHT_GL_GetProcAddress(_THIS, const char *proc)
 {
 #if SDL_VIDEO_OPENGL_PSGL
-    return NULL; // PSGL is typically statically linked
+    // PSGL doesn't have a getProcAddress, functions are usually linked statically
+    return NULL;
 #elif SDL_VIDEO_OPENGL_EGL
     return SDL_EGL_GetProcAddress(_this, proc);
 #else
@@ -75,9 +98,18 @@ PSL1GHT_GL_CreateContext(_THIS, SDL_Window * window)
 #if SDL_VIDEO_OPENGL_PSGL
     SDL_DeviceData *devdata = (SDL_DeviceData *) _this->driverdata;
     if (!devdata->psgl_device) {
-        devdata->psgl_device = psglCreateDeviceExtended(PSGL_DEVICE_FORMAT_R8G8B8A8 | PSGL_DEVICE_FORMAT_DEPTH24 | PSGL_DEVICE_FORMAT_MULTISAMPLING | PSGL_DEVICE_FORMAT_MULTISAMPLING_4X);
+        devdata->psgl_device = psglCreateDeviceAuto(GL_ARGB8_SCE, GL_DEPTH_COMPONENT24, PSGL_MULTISAMPLING_NONE);
+        if (!devdata->psgl_device) {
+            SDL_SetError("psglCreateDeviceAuto failed");
+            return NULL;
+        }
     }
-    return (SDL_GLContext)psglCreateContext();
+    PSGLcontext* context = psglCreateContext();
+    if (!context) {
+        SDL_SetError("psglCreateContext failed");
+        return NULL;
+    }
+    return (SDL_GLContext)context;
 #elif SDL_VIDEO_OPENGL_EGL
     return SDL_EGL_CreateContext(_this, ((SDL_WindowData *) window->driverdata)->egl_surface);
 #else
@@ -103,7 +135,8 @@ int
 PSL1GHT_GL_SetSwapInterval(_THIS, int interval)
 {
 #if SDL_VIDEO_OPENGL_PSGL
-    return 0; // Not directly supported?
+    // PSGL doesn't seem to have a direct swap interval API in the provided headers
+    return 0;
 #elif SDL_VIDEO_OPENGL_EGL
     return SDL_EGL_SetSwapInterval(_this, interval);
 #else
