@@ -33,12 +33,15 @@
 #include <PSGL/psgl.h>
 #include <PSGL/psglu.h>
 
-// Sony PSGL specific constants from headers
+/* Sony PSGL specific constants from headers */
 #ifndef GL_ARGB_SCE
 #define GL_ARGB_SCE 0x6007
 #endif
 #ifndef GL_MULTISAMPLING_NONE_SCE
 #define GL_MULTISAMPLING_NONE_SCE 0x6030
+#endif
+#ifndef GL_DEPTH_COMPONENT24
+#define GL_DEPTH_COMPONENT24 0x81A6
 #endif
 
 #endif
@@ -70,7 +73,7 @@ void *
 PSL1GHT_GL_GetProcAddress(_THIS, const char *proc)
 {
 #if SDL_VIDEO_OPENGL_PSGL
-    // PSGL doesn't have a getProcAddress, functions are usually linked statically
+    /* PSGL doesn't have a getProcAddress, functions are usually linked statically */
     return NULL;
 #elif SDL_VIDEO_OPENGL_EGL
     return SDL_EGL_GetProcAddress(_this, proc);
@@ -132,7 +135,6 @@ int
 PSL1GHT_GL_SetSwapInterval(_THIS, int interval)
 {
 #if SDL_VIDEO_OPENGL_PSGL
-    // PSGL doesn't seem to have a direct swap interval API in the provided headers
     return 0;
 #elif SDL_VIDEO_OPENGL_EGL
     return SDL_EGL_SetSwapInterval(_this, interval);
