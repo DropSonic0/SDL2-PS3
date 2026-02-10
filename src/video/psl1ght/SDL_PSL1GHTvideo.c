@@ -37,6 +37,7 @@
 #include "SDL_PSL1GHTvideo.h"
 #include "SDL_PSL1GHTevents_c.h"
 #include "SDL_PSL1GHTmodes_c.h"
+#include "SDL_PSL1GHTopengl.h"
 
 
 #include <malloc.h>
@@ -99,8 +100,16 @@ PSL1GHT_VideoQuit(_THIS)
     deprintf (1, "PSL1GHT_VideoQuit()\n");
     PSL1GHT_QuitModes(_this);
     PSL1GHT_QuitSysEvent(_this);
-    SDL_free( _this->driverdata);
 
+#if SDL_VIDEO_OPENGL_PSGL
+    SDL_DeviceData *devdata = (SDL_DeviceData *) _this->driverdata;
+    if (devdata && devdata->psgl_device) {
+        // psglDestroyDevice(devdata->psgl_device); // Might not be needed if psglExit is called
+        devdata->psgl_device = NULL;
+    }
+#endif
+
+    SDL_free( _this->driverdata);
 }
 
 void initializeGPU( SDL_DeviceData * devdata)
@@ -128,6 +137,15 @@ PSL1GHT_CreateWindow(_THIS, SDL_Window * window)
 
     /* Setup driver data for this window */
     window->driverdata = wdata;
+
+#if SDL_VIDEO_OPENGL_EGL
+    if (window->flags & SDL_WINDOW_OPENGL) {
+        wdata->egl_surface = SDL_EGL_CreateSurface(_this, (NativeWindowType)0);
+        if (wdata->egl_surface == EGL_NO_SURFACE) {
+            return -1;
+        }
+    }
+#endif
 
     SDL_SetKeyboardFocus(window);
 
@@ -189,6 +207,17 @@ PSL1GHT_SetWindowGrab(_THIS, SDL_Window * window, SDL_bool grabbed)
 void
 PSL1GHT_DestroyWindow(_THIS, SDL_Window * window)
 {
+    SDL_WindowData *wdata = (SDL_WindowData *) window->driverdata;
+
+    if (wdata) {
+#if SDL_VIDEO_OPENGL_EGL
+        if (wdata->egl_surface != EGL_NO_SURFACE) {
+            SDL_EGL_DestroySurface(_this, wdata->egl_surface);
+        }
+#endif
+        SDL_free(wdata);
+        window->driverdata = NULL;
+    }
 }
 
 SDL_bool PSL1GHT_HasScreenKeyboardSupport(_THIS)
@@ -249,6 +278,18 @@ PSL1GHT_CreateDevice(int devindex)
     device->IsScreenKeyboardShown = PSL1GHT_IsScreenKeyboardShown;
 
     device->PumpEvents = PSL1GHT_PumpEvents;
+
+#if SDL_VIDEO_OPENGL_EGL || SDL_VIDEO_OPENGL_PSGL
+    device->GL_LoadLibrary = PSL1GHT_GL_LoadLibrary;
+    device->GL_GetProcAddress = PSL1GHT_GL_GetProcAddress;
+    device->GL_UnloadLibrary = PSL1GHT_GL_UnloadLibrary;
+    device->GL_CreateContext = PSL1GHT_GL_CreateContext;
+    device->GL_MakeCurrent = PSL1GHT_GL_MakeCurrent;
+    device->GL_SetSwapInterval = PSL1GHT_GL_SetSwapInterval;
+    device->GL_GetSwapInterval = PSL1GHT_GL_GetSwapInterval;
+    device->GL_SwapWindow = PSL1GHT_GL_SwapWindow;
+    device->GL_DeleteContext = PSL1GHT_GL_DeleteContext;
+#endif
 
     device->free = PSL1GHT_DeleteDevice;
 
