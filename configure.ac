@@ -2343,6 +2343,11 @@ AC_ARG_ENABLE(video-opengl,
 AS_HELP_STRING([--enable-video-opengl], [include OpenGL support [[default=yes]]]),
               , enable_video_opengl=yes)
 
+dnl Check to see if PSGL support is desired
+AC_ARG_ENABLE(video-psgl,
+AS_HELP_STRING([--enable-video-psgl], [include PSGL support [[default=no]]]),
+              , enable_video_psgl=no)
+
 dnl Find OpenGL
 CheckOpenGLX11()
 {
@@ -2502,9 +2507,17 @@ dnl Check for PSL1GHT OpenGL
 CheckPSL1GHTGL()
 {
     if test x$enable_video = xyes -a x$enable_video_opengl = xyes; then
-        AC_DEFINE(SDL_VIDEO_OPENGL, 1, [ ])
-        AC_DEFINE(SDL_VIDEO_RENDER_OGL, 1, [ ])
-        EXTRA_LDFLAGS="$EXTRA_LDFLAGS -lEGL -lGL -lstdc++ -lm"
+        if test x$enable_video_psgl = xyes; then
+            AC_DEFINE(SDL_VIDEO_OPENGL_PSGL, 1, [ ])
+            AC_DEFINE(SDL_VIDEO_OPENGL_ES, 1, [ ])
+            AC_DEFINE(SDL_VIDEO_RENDER_OGL_ES, 1, [ ])
+            EXTRA_LDFLAGS="$EXTRA_LDFLAGS -lpsgl -lpsglu -lpsgl_effects -lcg -lcgGL -lstdc++ -lm"
+        else
+            AC_DEFINE(SDL_VIDEO_OPENGL, 1, [ ])
+            AC_DEFINE(SDL_VIDEO_OPENGL_EGL, 1, [ ])
+            AC_DEFINE(SDL_VIDEO_RENDER_OGL, 1, [ ])
+            EXTRA_LDFLAGS="$EXTRA_LDFLAGS -lEGL -lGL -lstdc++ -lm"
+        fi
     fi
 }
 
@@ -4082,7 +4095,7 @@ AS_HELP_STRING([--enable-render-d3d], [enable the Direct3D render driver [[defau
         EXTRA_LDFLAGS="$EXTRA_LDFLAGS -lgcm_sys -lrsx -lsysutil -lio -laudio -lrt -llv2"
         CheckPSL1GHTVideo
         #CheckDummyAudio
-        #CheckPSL1GHTGL
+        CheckPSL1GHTGL
 
         # Set up files for the thread library
         if test x$enable_threads = xyes; then

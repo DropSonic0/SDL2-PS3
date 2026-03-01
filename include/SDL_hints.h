@@ -1375,6 +1375,14 @@ extern "C" {
  */
 #define SDL_HINT_PREFERRED_LOCALES "SDL_PREFERRED_LOCALES"
 
+/**
+ *  \brief  A variable that controls whether to use the PSGL OpenGL library on PS3.
+ *
+ *  This variable can be set to the following values:
+ *    "0"       - Do not use PSGL (default)
+ *    "1"       - Use PSGL
+ */
+#define SDL_HINT_VIDEO_OPENGL_PSGL "SDL_VIDEO_OPENGL_PSGL"
 
 /**
  *  \brief  An enumeration of hint priorities

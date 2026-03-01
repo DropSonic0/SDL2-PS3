@@ -26,6 +26,13 @@
 
 #include "../SDL_sysvideo.h"
 
+#if SDL_VIDEO_OPENGL_EGL
+#include "../SDL_egl_c.h"
+#endif
+#if SDL_VIDEO_OPENGL_PSGL
+#include <PSGL/psgl.h>
+#endif
+
 #include <rsx/rsx.h>
 #include <sysutil/video.h>
 
@@ -57,6 +64,10 @@ typedef struct SDL_DeviceData
     // Context to keep track of the RSX buffer.
     gcmContextData *_CommandBuffer;
 
+#if SDL_VIDEO_OPENGL_PSGL
+    PSGLdevice* psgl_device;
+#endif
+
     bool _keyboardConnected;
     Uint32 _keyboardMapping;
 
@@ -71,7 +82,9 @@ typedef struct SDL_DisplayModeData
 
 typedef struct SDL_WindowData
 {
-
+#if SDL_VIDEO_OPENGL_EGL
+    EGLSurface egl_surface;
+#endif
 } SDL_WindowData;
 
 #endif /* _SDL_PSL1GHTvideo_h */

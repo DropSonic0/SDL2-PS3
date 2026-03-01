@@ -62,6 +62,7 @@ src/video/winrt/SDL_winrtmouse.cpp
 src/video/winrt/SDL_winrtgamebar.cpp
 src/video/SDL_shape.c
 src/video/psl1ght/SDL_PSL1GHTvideo.c
+src/video/psl1ght/SDL_PSL1GHTopengl.c
 src/video/psl1ght/SDL_PSL1GHTkeyboard.c
 src/video/psl1ght/SDL_PSL1GHTmodes.c
 src/video/psl1ght/SDL_PSL1GHTmouse.c
